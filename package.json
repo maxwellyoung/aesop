@@ -24,7 +24,8 @@
     "react-dom": "^18",
     "tailwind-merge": "^2.5.2",
     "tailwindcss-animate": "^1.0.7",
-    "three": "^0.167.1"
+    "three": "^0.167.1",
+    "vercel": "^37.1.0"
   },
   "devDependencies": {
     "@types/node": "^20",

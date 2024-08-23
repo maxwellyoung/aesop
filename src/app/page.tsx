@@ -8,54 +8,34 @@ import {
   useMotionValue,
   AnimatePresence,
 } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
-import * as THREE from "three";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import {
-  useGLTF,
-  OrbitControls,
-  Environment,
-  Cylinder,
-  Sphere,
-} from "@react-three/drei";
+import { useEffect, useRef, useState, Suspense } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "../components/Toast";
 import LogoAnimation from "./LogoAnimation";
+import GlowingButton from "@/components/GlowingButton";
+import Head from "next/head";
 
-interface ProductModelProps {
-  onClick: () => void;
-}
-
-function ProductModel({ onClick }: ProductModelProps) {
-  const groupRef = useRef<THREE.Group>(null);
-
-  useFrame((state) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y += 0.01;
-      groupRef.current.position.y = Math.sin(state.clock.elapsedTime) * 0.1;
-    }
-  });
-
-  return (
-    <group ref={groupRef} onClick={onClick}>
-      <Cylinder args={[0.5, 0.5, 2, 32]} position={[0, 0, 0]}>
-        <meshStandardMaterial color="#8B7E74" metalness={0.4} roughness={0.2} />
-      </Cylinder>
-      <Cylinder args={[0.2, 0.3, 0.5, 32]} position={[0, 1.25, 0]}>
-        <meshStandardMaterial color="#8B7E74" metalness={0.4} roughness={0.2} />
-      </Cylinder>
-      <Cylinder args={[0.25, 0.25, 0.2, 32]} position={[0, 1.6, 0]}>
-        <meshStandardMaterial color="#413F3D" metalness={0.6} roughness={0.1} />
-      </Cylinder>
-      <Sphere args={[0.15, 16, 16]} position={[0, 1.8, 0]}>
-        <meshStandardMaterial color="#413F3D" metalness={0.6} roughness={0.1} />
-      </Sphere>
-    </group>
-  );
-}
+const DynamicCanvas = dynamic(
+  () => import("@react-three/fiber").then((mod) => mod.Canvas),
+  { ssr: false }
+);
+const DynamicProductModel = dynamic(
+  () => import("../components/ProductModel"),
+  {
+    ssr: false,
+  }
+);
+const ProductModal = dynamic(() => import("../components/ProductModal"), {
+  ssr: false,
+});
+const OrbitControls = dynamic(
+  () => import("@react-three/drei").then((mod) => mod.OrbitControls),
+  { ssr: false }
+);
 
 function Cursor() {
   const cursorX = useMotionValue(-100);
@@ -83,61 +63,6 @@ function Cursor() {
   );
 }
 
-interface ProductModalProps {
-  product: { name: string; description: string; details: string[] } | null;
-  onClose: () => void;
-}
-
-function ProductModal({ product, onClose }: ProductModalProps) {
-  if (!product) return null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ y: 50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 50, opacity: 0 }}
-        className="bg-white text-black p-8 rounded-lg max-w-4xl w-full mx-4 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex flex-col md:flex-row gap-8">
-          <div className="w-full md:w-1/2">
-            <h2 className="text-3xl font-bold mb-4">{product.name}</h2>
-            <p className="mb-6 text-gray-600">{product.description}</p>
-            <Separator className="my-4" />
-            <h3 className="text-xl font-semibold mb-2">Key Benefits</h3>
-            <ul className="list-disc pl-5 mb-6">
-              {product.details.map((detail, index) => (
-                <li key={index} className="mb-2">
-                  {detail}
-                </li>
-              ))}
-            </ul>
-            <Button onClick={onClose} className="w-full">
-              Close
-            </Button>
-          </div>
-          <div className="w-full md:w-1/2 h-[400px]">
-            <Canvas>
-              <ambientLight intensity={0.5} />
-              <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} />
-              <ProductModel onClick={() => {}} />
-              <OrbitControls enableZoom={false} />
-              <Environment preset="studio" />
-            </Canvas>
-          </div>
-        </div>
-      </motion.div>
-    </motion.div>
-  );
-}
-
 export default function AesopInnovativePage() {
   const { showToast } = useToast();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -147,6 +72,11 @@ export default function AesopInnovativePage() {
   });
 
   const [showAnimation, setShowAnimation] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<{
+    name: string;
+    description: string;
+    details: string[];
+  } | null>(null);
 
   const handleAnimationComplete = () => {
     setShowAnimation(false);
@@ -164,12 +94,6 @@ export default function AesopInnovativePage() {
   const titleOpacity = useTransform(scrollYProgress, [0, 0.1], [1, 0]);
   const backgroundY = useTransform(scrollYProgress, [0, 1], [0, 300]);
   const backgroundScale = useTransform(scrollYProgress, [0, 1], [1, 1.2]);
-
-  const [selectedProduct, setSelectedProduct] = useState<{
-    name: string;
-    description: string;
-    details: string[];
-  } | null>(null);
 
   const springConfig = { stiffness: 100, damping: 30, restDelta: 0.001 };
   const x = useSpring(useMotionValue(0), springConfig);
@@ -192,6 +116,15 @@ export default function AesopInnovativePage() {
 
   return (
     <>
+      <Head>
+        <title>Aesop - Formulations for Skin, Hair & Body</title>
+        <meta
+          name="description"
+          content="Discover Aesop's range of superlative products for skin, hair, and body. Committed to using high-quality ingredients with proven efficacy."
+        />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
+      </Head>
       <AnimatePresence>
         {showAnimation && (
           <LogoAnimation onComplete={handleAnimationComplete} />
@@ -206,7 +139,7 @@ export default function AesopInnovativePage() {
       >
         <Cursor />
         <motion.header
-          className="fixed top-0 left-0 right-0 z-40 p-6 flex justify-between items-center"
+          className="fixed top-0 left-0 right-0 z-40 p-4 md:p-6 flex justify-between items-center"
           style={{ opacity: titleOpacity }}
         >
           <Link href="/">
@@ -216,7 +149,6 @@ export default function AesopInnovativePage() {
               focusable="false"
               height="40"
               role="img"
-              tabIndex={-1}
               viewBox="0 0 489.7 154.3"
               width="120"
               style={{ height: "40px", width: "120px" }}
@@ -236,6 +168,7 @@ export default function AesopInnovativePage() {
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
+            className="hidden md:block"
           >
             <ul className="flex space-x-6">
               <li>
@@ -278,6 +211,7 @@ export default function AesopInnovativePage() {
                 layout="fill"
                 objectFit="cover"
                 priority
+                quality={90}
               />
             </motion.div>
             <motion.div
@@ -323,11 +257,14 @@ export default function AesopInnovativePage() {
             </motion.div>
           </section>
 
-          <section id="products" className="min-h-screen py-20 px-6 relative">
-            <h2 className="text-5xl font-bold mb-12 text-center">
+          <section
+            id="products"
+            className="min-h-screen py-20 px-4 md:px-6 relative"
+          >
+            <h2 className="text-3xl md:text-5xl font-bold mb-12 text-center">
               Featured Products
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
               {[
                 {
                   name: "Hand Reverence Aromatique Hand Wash",
@@ -369,19 +306,16 @@ export default function AesopInnovativePage() {
                   viewport={{ once: true }}
                 >
                   <div className="h-[400px]">
-                    <Canvas>
+                    <DynamicCanvas>
                       <ambientLight intensity={0.5} />
                       <spotLight
                         position={[10, 10, 10]}
                         angle={0.15}
                         penumbra={1}
                       />
-                      <ProductModel
-                        onClick={() => setSelectedProduct(product)}
-                      />
+                      <DynamicProductModel />
                       <OrbitControls enableZoom={false} />
-                      <Environment preset="studio" />
-                    </Canvas>
+                    </DynamicCanvas>
                   </div>
                   <motion.div
                     className="absolute bottom-0 left-0 right-0 p-4 bg-black bg-opacity-75"
@@ -396,7 +330,7 @@ export default function AesopInnovativePage() {
                     <Button
                       onClick={() => setSelectedProduct(product)}
                       variant="outline"
-                      className="w-full text-black border-white hover:bg-white transition-colors"
+                      className="w-full text-white border-white hover:bg-white hover:text-black transition-colors"
                     >
                       Learn more
                     </Button>
@@ -408,18 +342,20 @@ export default function AesopInnovativePage() {
 
           <section
             id="story"
-            className="min-h-screen py-20 px-6 bg-white text-black relative overflow-hidden"
+            className="min-h-screen py-20 px-4 md:px-6 bg-white text-black relative overflow-hidden"
           >
             <motion.div
-              className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
+              className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center"
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
               viewport={{ once: true }}
             >
               <div>
-                <h2 className="text-5xl font-bold mb-6">Our Story</h2>
-                <p className="text-xl mb-8 leading-relaxed">
+                <h2 className="text-3xl md:text-5xl font-bold mb-6">
+                  Our Story
+                </h2>
+                <p className="text-lg md:text-xl mb-8 leading-relaxed">
                   Aesop was established in Melbourne in 1987 with a quest to
                   create a range of superlative products for skin, hair and
                   body. We are committed to using both plant-based and
@@ -437,7 +373,7 @@ export default function AesopInnovativePage() {
                 </Link>
               </div>
               <motion.div
-                className="relative h-[600px] overflow-hidden rounded-lg"
+                className="relative h-[400px] md:h-[600px] overflow-hidden rounded-lg"
                 onMouseMove={handleMouseMove}
                 style={{
                   rotateX: rotateX,
@@ -458,22 +394,34 @@ export default function AesopInnovativePage() {
                 />
               </motion.div>
             </motion.div>
+            <div className="absolute bottom-0 left-0 right-0 h-16 md:h-32 overflow-hidden">
+              <div
+                className="absolute bottom-0 left-0 right-0 h-32 md:h-64 bg-gray-900"
+                style={{
+                  borderTopLeftRadius: "100% 100%",
+                  borderTopRightRadius: "100% 100%",
+                  transform: "translateY(50%)",
+                }}
+              ></div>
+            </div>
           </section>
 
           <section
             id="contact"
-            className="min-h-screen py-20 px-6 bg-gray-900 relative overflow-hidden"
+            className="relative min-h-screen py-20 px-4 md:px-6 bg-gradient-to-b from-gray-900 via-gray-800 to-black overflow-hidden"
           >
             <motion.div
-              className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
+              className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center"
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
               viewport={{ once: true }}
             >
               <div>
-                <h2 className="text-5xl font-bold mb-6">Stay Connected</h2>
-                <p className="text-xl mb-8">
+                <h2 className="text-3xl md:text-5xl font-bold mb-6">
+                  Stay Connected
+                </h2>
+                <p className="text-lg md:text-xl mb-8">
                   Sign up to receive communications about Aesop products,
                   services, stores, events and matters of cultural interest.
                 </p>
@@ -483,62 +431,144 @@ export default function AesopInnovativePage() {
                     placeholder="Your email"
                     className="w-full px-4 py-2 rounded-md bg-white bg-opacity-10 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white"
                   />
-                  <Button type="submit" className="w-full">
+                  <GlowingButton type="submit" className="w-full">
                     Subscribe
-                  </Button>
+                  </GlowingButton>
                 </form>
               </div>
               <div className="relative h-[400px]">
-                <Canvas>
+                <DynamicCanvas>
                   <ambientLight intensity={0.5} />
                   <spotLight
                     position={[10, 10, 10]}
                     angle={0.15}
                     penumbra={1}
                   />
-                  <ProductModel onClick={() => {}} />
+                  <DynamicProductModel />
                   <OrbitControls enableZoom={false} />
-                  <Environment preset="studio" />
-                </Canvas>
+                </DynamicCanvas>
               </div>
             </motion.div>
           </section>
         </main>
 
-        <footer className="bg-black text-white py-12 px-6">
+        <footer className="bg-black text-white py-12 px-4 md:px-6">
           <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+              <h3 className="text-lg font-medium mb-4">About</h3>
+              <ul className="space-y-2">
+                <li>
+                  <a href="#" className="hover:underline">
+                    Our Story
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:underline">
+                    Foundation
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:underline">
+                    Careers
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:underline">
+                    Privacy Policy
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium mb-4">Customer Care</h3>
+              <ul className="space-y-2">
+                <li>
+                  <a href="#" className="hover:underline">
+                    Contact Us
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:underline">
+                    FAQs
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:underline">
+                    Shipping
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:underline">
+                    Returns
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium mb-4">Social</h3>
+              <ul className="space-y-2">
+                <li>
+                  <a href="#" className="hover:underline">
+                    Instagram
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:underline">
+                    Twitter
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:underline">
+                    LinkedIn
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="hover:underline">
+                    Facebook
+                  </a>
+                </li>
+              </ul>
+            </div>
             <div>
               <h3 className="text-lg font-medium mb-4">Newsletter</h3>
               <p className="mb-4">
                 Stay updated with our latest news and offers.
               </p>
-              <form onSubmit={handleNewsletterSubmit} className="flex">
+              <form
+                onSubmit={handleNewsletterSubmit}
+                className="flex flex-col space-y-2"
+              >
                 <input
                   type="email"
                   name="email"
                   placeholder="Your email"
-                  className="flex-grow px-4 py-2 rounded-l-md bg-white bg-opacity-10 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white"
+                  className="px-4 py-2 rounded-md bg-white bg-opacity-10 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white"
                   required
                 />
-                <Button type="submit" className="rounded-l-none">
+                <GlowingButton type="submit" className="w-full">
                   Sign Up
-                </Button>
+                </GlowingButton>
               </form>
             </div>
           </div>
-          <div className="mt-12 text-center text-sm">
+          <div className="mt-12 pt-8 border-t border-gray-800 text-center text-sm">
             <p>&copy; {new Date().getFullYear()} Aesop. All rights reserved.</p>
+            <p className="mt-2">
+              Discover our stores and services across the globe.
+            </p>
           </div>
         </footer>
 
-        <AnimatePresence>
-          {selectedProduct && (
-            <ProductModal
-              product={selectedProduct}
-              onClose={() => setSelectedProduct(null)}
-            />
-          )}
-        </AnimatePresence>
+        <Suspense fallback={<div>Loading...</div>}>
+          <AnimatePresence>
+            {selectedProduct && (
+              <ProductModal
+                product={selectedProduct}
+                onClose={() => setSelectedProduct(null)}
+              />
+            )}
+          </AnimatePresence>
+        </Suspense>
       </motion.div>
     </>
   );
